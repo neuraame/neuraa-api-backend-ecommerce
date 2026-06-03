@@ -7,7 +7,6 @@ generator client {
   provider = "prisma-client-js"
 }
 
-
 model Inquiry {
   id            String   @id @default(uuid())
   name          String
@@ -19,7 +18,15 @@ model Inquiry {
 
 model Banner {
   id        String   @id @default(uuid())
+  slot      Int      @unique  // 1, 2, or 3
   imageUrl  String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model AdminUser {
+  id        String   @id @default(uuid())
+  username  String   @unique
+  password  String
+  createdAt DateTime @default(now())
 }

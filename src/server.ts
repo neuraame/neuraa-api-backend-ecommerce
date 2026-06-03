@@ -15,10 +15,16 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '20mb' })); // Allow large base64 images
 
+// ── Hardcoded Admin Credentials ──────────────────────────────
+const ADMIN_USERNAME = 'NeuraaAdmin';
+const ADMIN_PASSWORD = 'NEUrra@2025';
 
-// 6. Inquiry / Contact Form Endpoint
+// ─────────────────────────────────────────────────────────────
+// INQUIRY endpoints
+// ─────────────────────────────────────────────────────────────
+
 app.post('/api/inquiries', async (req, res) => {
   const { name, contactNumber, email, requirement } = req.body;
 
@@ -26,7 +32,6 @@ app.post('/api/inquiries', async (req, res) => {
     return res.status(400).json({ error: 'All fields are required: name, contactNumber, email, requirement' });
   }
 
-  // Basic email validation
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(email)) {
     return res.status(400).json({ error: 'Invalid email address format' });
@@ -41,10 +46,7 @@ app.post('/api/inquiries', async (req, res) => {
         requirement: requirement.trim(),
       },
     });
-    
-    // Log the successful submission to the console
     console.log(`✅ [New Inquiry] Received and stored submission from: ${inquiry.name} (${inquiry.email})`);
-    
     res.status(201).json({ success: true, message: 'Inquiry submitted successfully!', id: inquiry.id });
   } catch (error) {
     console.error('Error saving inquiry:', error);
@@ -64,56 +66,94 @@ app.get('/api/inquiries', async (req, res) => {
   }
 });
 
-// Banner endpoints
-app.post('/api/banners', async (req, res) => {
-  const { imageUrl } = req.body;
-  if (!imageUrl) {
-    return res.status(400).json({ error: 'imageUrl is required' });
-  }
-
-  try {
-    // For simplicity, we assume there's only one active banner or we just keep adding them
-    // and fetch the latest one
-    const banner = await prisma.banner.create({
-      data: { imageUrl }
-    });
-    res.status(201).json(banner);
-  } catch (error) {
-    console.error('Error creating banner:', error);
-    res.status(500).json({ error: 'Failed to create banner' });
-  }
-});
+// ─────────────────────────────────────────────────────────────
+// PUBLIC BANNER endpoint (used by Dashboard-neuraa)
+// Returns all banners ordered by slot
+// ─────────────────────────────────────────────────────────────
 
 app.get('/api/banners', async (req, res) => {
   try {
-    // Fetch the most recent banner
-    const banner = await prisma.banner.findFirst({
-      orderBy: { createdAt: 'desc' },
+    const banners = await prisma.banner.findMany({
+      orderBy: { slot: 'asc' },
     });
-    res.json(banner);
+    res.json(banners);
   } catch (error) {
-    console.error('Error fetching banner:', error);
-    res.status(500).json({ error: 'Failed to fetch banner' });
+    console.error('Error fetching banners:', error);
+    res.status(500).json({ error: 'Failed to fetch banners' });
   }
 });
 
-app.put('/api/banners/:id', async (req, res) => {
-  const { id } = req.params;
+// ─────────────────────────────────────────────────────────────
+// ADMIN endpoints
+// ─────────────────────────────────────────────────────────────
+
+// Admin Login
+app.post('/api/admin/login', (req, res) => {
+  const { username, password } = req.body;
+  if (!username || !password) {
+    return res.status(400).json({ error: 'Username and password are required' });
+  }
+  if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
+    console.log(`✅ [Admin Login] Successful login for: ${username}`);
+    return res.json({ success: true, message: 'Login successful' });
+  }
+  return res.status(401).json({ error: 'Invalid username or password' });
+});
+
+// GET all banner slots (admin view — returns slots 1, 2, 3)
+app.get('/api/admin/banners', async (req, res) => {
+  try {
+    const banners = await prisma.banner.findMany({
+      orderBy: { slot: 'asc' },
+    });
+    res.json(banners);
+  } catch (error) {
+    console.error('Error fetching admin banners:', error);
+    res.status(500).json({ error: 'Failed to fetch banners' });
+  }
+});
+
+// PUT — upsert image for a specific slot (1, 2, or 3)
+app.put('/api/admin/banners/:slot', async (req, res) => {
+  const slot = parseInt(req.params.slot, 10);
   const { imageUrl } = req.body;
-  
+
+  if (isNaN(slot) || slot < 1 || slot > 3) {
+    return res.status(400).json({ error: 'Slot must be 1, 2, or 3' });
+  }
   if (!imageUrl) {
     return res.status(400).json({ error: 'imageUrl is required' });
   }
 
   try {
-    const banner = await prisma.banner.update({
-      where: { id },
-      data: { imageUrl }
+    const banner = await prisma.banner.upsert({
+      where: { slot },
+      update: { imageUrl },
+      create: { slot, imageUrl },
     });
+    console.log(`✅ [Admin] Banner slot ${slot} updated`);
     res.json(banner);
   } catch (error) {
-    console.error('Error updating banner:', error);
+    console.error('Error upserting banner:', error);
     res.status(500).json({ error: 'Failed to update banner' });
+  }
+});
+
+// DELETE — remove image for a specific slot
+app.delete('/api/admin/banners/:slot', async (req, res) => {
+  const slot = parseInt(req.params.slot, 10);
+
+  if (isNaN(slot) || slot < 1 || slot > 3) {
+    return res.status(400).json({ error: 'Slot must be 1, 2, or 3' });
+  }
+
+  try {
+    await prisma.banner.deleteMany({ where: { slot } });
+    console.log(`🗑️  [Admin] Banner slot ${slot} removed`);
+    res.json({ success: true, message: `Banner slot ${slot} removed` });
+  } catch (error) {
+    console.error('Error deleting banner:', error);
+    res.status(500).json({ error: 'Failed to delete banner' });
   }
 });
 
