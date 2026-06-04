@@ -1,0 +1,9 @@
+# Dependency directories
+node_modules/
+
+# Build outputs
+dist/
+
+# Environment files (contains credentials)
+.env
+*.env
