@@ -113,23 +113,40 @@ app.get('/api/admin/banners', async (req, res) => {
   }
 });
 
-// PUT — upsert image for a specific slot (1, 2, or 3)
+// PUT — upsert image and headings for a specific slot (1, 2, or 3)
 app.put('/api/admin/banners/:slot', async (req, res) => {
   const slot = parseInt(req.params.slot, 10);
-  const { imageUrl } = req.body;
+  const { imageUrl, heading1, heading2, heading3 } = req.body;
 
   if (isNaN(slot) || slot < 1 || slot > 3) {
     return res.status(400).json({ error: 'Slot must be 1, 2, or 3' });
   }
-  if (!imageUrl) {
-    return res.status(400).json({ error: 'imageUrl is required' });
-  }
 
   try {
+    // If imageUrl is missing, maybe we are just updating text.
+    // However, Prisma upsert needs imageUrl if creating for the first time.
+    // We'll fetch the existing to get current imageUrl if it's missing in req.body
+    let finalImageUrl = imageUrl;
+    if (!finalImageUrl) {
+       const existing = await prisma.banner.findUnique({ where: { slot } });
+       finalImageUrl = existing?.imageUrl || "";
+    }
+
     const banner = await prisma.banner.upsert({
       where: { slot },
-      update: { imageUrl },
-      create: { slot, imageUrl },
+      update: { 
+        imageUrl: finalImageUrl,
+        heading1: heading1 !== undefined ? heading1 : undefined,
+        heading2: heading2 !== undefined ? heading2 : undefined,
+        heading3: heading3 !== undefined ? heading3 : undefined,
+      },
+      create: { 
+        slot, 
+        imageUrl: finalImageUrl,
+        heading1,
+        heading2,
+        heading3,
+      },
     });
     console.log(`✅ [Admin] Banner slot ${slot} updated`);
     res.json(banner);
