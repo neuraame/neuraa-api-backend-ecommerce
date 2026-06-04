@@ -66,6 +66,26 @@ app.get('/api/inquiries', async (req, res) => {
   }
 });
 
+app.put('/api/admin/inquiries/:id/status', async (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+  if (!status || (status !== 'pending' && status !== 'completed')) {
+    return res.status(400).json({ error: 'Invalid status' });
+  }
+
+  try {
+    const updated = await prisma.inquiry.update({
+      where: { id },
+      data: { status }
+    });
+    console.log(`✅ [Admin] Inquiry ${id} marked as ${status}`);
+    res.json(updated);
+  } catch (error) {
+    console.error('Error updating inquiry status:', error);
+    res.status(500).json({ error: 'Failed to update status' });
+  }
+});
+
 // ─────────────────────────────────────────────────────────────
 // PUBLIC BANNER endpoint (used by Dashboard-neuraa)
 // Returns all banners ordered by slot

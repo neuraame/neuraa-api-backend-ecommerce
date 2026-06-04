@@ -13,6 +13,7 @@ model Inquiry {
   contactNumber String
   email         String
   requirement   String
+  status        String   @default("pending")
   createdAt     DateTime @default(now())
 }
 
